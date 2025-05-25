@@ -1,0 +1,8 @@
+# Core libs
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install scikit-learn torchmetrics opencv-python pillow pandas tqdm
+
+# Explainability (Grad-CAM)
+pip install torchcam==0.4.0
+# Kaggle CLI (optional)
+pip install kaggle
