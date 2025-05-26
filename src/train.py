@@ -9,7 +9,7 @@ from torch.utils.data import random_split, DataLoader
 from torchvision.models import densenet121
 from torchmetrics.classification import MultilabelAUROC
 from torch.multiprocessing import freeze_support
-from tqdm.notebook import tqdm # Progress Bar
+from tqdm.auto import tqdm # Progress Bar
 
 from dataset import ChestXRay14
 
@@ -76,13 +76,14 @@ def main():
         with torch.no_grad():
             for imgs, targets in loop:
                 imgs = imgs.to(device)
+                targets = targets.to(device)
                 logits = model(imgs)
                 preds = torch.sigmoid(logits).cpu()
                 preds_list.append(preds)
-                targets_list.append(targets)
-        all_preds = torch.cat(preds_list)
-        all_targets = torch.cat(targets_list)
-        val_auroc = metric(all_preds, all_targets)
+                targets_list.append(targets.cpu())
+        all_preds = torch.cat(preds_list) # Concatenate
+        all_targets = torch.cat(targets_list).int()
+        val_auroc = metric(all_preds.to(device), all_targets.to(device))
         loop.set_postfix(auroc=val_auroc.item())
         print(f"EPOCH {epoch+1} - Val AUROC: {val_auroc:.4f}")
 
