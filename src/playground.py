@@ -1,3 +1,8 @@
+### src/playground.py
+### Playground Testing Script
+### Test the Dataset and Dataloader
+
+# %%
 from torch.utils.data import DataLoader
 from dataset import ChestXRay14
 from torch.multiprocessing import freeze_support
@@ -6,6 +11,7 @@ from torch.multiprocessing import freeze_support
 #print("UNDER data/:", os.listdir("data/"))
 #print("UNDER data/images:", os.listdir("data/images"))
 
+# %%
 if __name__ == "__main__":
     freeze_support()  # For Windows compatibility
     ds = ChestXRay14(img_dir='data/images', csv_file='cxr_csv/Data_Entry_2017.csv')
