@@ -2,6 +2,7 @@
 ### Train Script
 ### Train a model on the Dataset
 # %%
+import os
 import random, numpy as np
 import torch
 from torch import nn, optim
@@ -19,6 +20,10 @@ random.seed(SEED)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
+
+# move up to project root
+os.chdir("..")
+print("CMD Now: ", os.getcwd())
 
 # %%
 ### Config
