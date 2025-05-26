@@ -10,7 +10,7 @@ from torch.utils.data import random_split, DataLoader
 from torchvision.models import densenet121
 from torchmetrics.classification import MultilabelAUROC
 from torch.multiprocessing import freeze_support
-from tqdm.auto import tqdm # Progress Bar
+from tqdm.notebook import tqdm # Progress Bar
 
 from dataset import ChestXRay14
 
@@ -65,7 +65,7 @@ metric = MultilabelAUROC(num_labels=len(ds.targets[0])).to(device)
 ### Train and Validate
 for epoch in range(EPOCHS):
     model.train() # training mode
-    loop = tqdm (train_loader, desc=f"Epoch {epoch+1}/{EPOCHS} [train]") # progress bar
+    loop = tqdm (train_loader, desc=f"Epoch {epoch+1}/{EPOCHS} [train]", unit="batch") # progress bar
     for imgs, targets in loop:
         imgs, targets = imgs.to(device), targets.to(device)
         logits = model(imgs) # forward pass
@@ -76,7 +76,7 @@ for epoch in range(EPOCHS):
         loop.set_postfix(loss=loss.item()) # update progress bar with loss
 
     model.eval() # validation mode
-    loop = tqdm(val_loader, desc=f"Epoch {epoch+1}/{EPOCHS} [val]") # progress bar
+    loop = tqdm(val_loader, desc=f"Epoch {epoch+1}/{EPOCHS} [val]", unit="batch") # progress bar
     preds_list, targets_list = [], []
     with torch.no_grad():
         for imgs, targets in loop:
