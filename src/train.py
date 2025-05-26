@@ -65,7 +65,7 @@ metric = MultilabelAUROC(num_labels=len(ds.targets[0])).to(device)
 ### Train and Validate
 for epoch in range(EPOCHS):
     model.train() # training mode
-    loop = tqdm (train_loader, desc=f"Epoch {epoch+1}/{EPOCHS} [train]", unit="batch") # progress bar
+    loop = tqdm (train_loader, desc=f"Epoch {epoch+1}/{EPOCHS} [train]", miniters=1, unit="batch") # progress bar
     for imgs, targets in loop:
         imgs, targets = imgs.to(device), targets.to(device)
         logits = model(imgs) # forward pass
