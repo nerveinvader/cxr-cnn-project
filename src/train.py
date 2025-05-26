@@ -10,6 +10,7 @@ from torch.utils.data import random_split, DataLoader
 from torchvision.models import densenet121
 from torchmetrics.classification import MultilabelAUROC
 from torch.multiprocessing import freeze_support
+from tqdm.auto import tqdm # Progress Bar
 
 from dataset import ChestXRay14
 
@@ -64,24 +65,28 @@ metric = MultilabelAUROC(num_labels=len(ds.targets[0])).to(device)
 ### Train and Validate
 for epoch in range(EPOCHS):
     model.train() # training mode
-    for imgs, targets in train_loader:
+    loop = tqdm (train_loader, desc=f"Epoch {epoch+1}/{EPOCHS} [train]") # progress bar
+    for imgs, targets in loop:
         imgs, targets = imgs.to(device), targets.to(device)
         logits = model(imgs) # forward pass
         loss = criterion(logits, targets) # calc loss
         optimizer.zero_grad() # reset grad ???
         loss.backward() # backpropagation
         optimizer.step() # update
+        loop.set_postfix(loss=loss.item()) # update progress bar with loss
 
     model.eval() # validation mode
+    loop = tqdm(val_loader, desc=f"Epoch {epoch+1}/{EPOCHS} [val]") # progress bar
     preds_list, targets_list = [], []
     with torch.no_grad():
-        for imgs, targets in val_loader:
+        for imgs, targets in loop:
             imgs = imgs.to(device)
             logits = model(imgs) # forward pass ???
             preds = torch.sigmoid(logits).cpu() # apply sigmoid to logits ???
             preds_list.append(preds)
             targets_list.append(targets)
-    all_preds = torch.cat(preds_list)
+            loop.set_postfix(auroc=val_auroc.item()) # update progress bar with AUROC
+    all_preds = torch.cat(preds_list) # concatenate
     all_targets = torch.cat(targets_list)
     val_auroc = metric(all_preds, all_targets) # calc AUROC
     print(f"EPOCH {epoch+1} - Val AUROC: {val_auroc:.4f}") # print AUROC result
