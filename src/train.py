@@ -1,12 +1,14 @@
 ### src/train.py
 ### Train Script
 ### Train a model on the Dataset
+### Note on quotations: use '' for parameters, use "" for strings and prints.
+
 import os
 import random, numpy as np
 import torch
 from torch import nn, optim
 from torch.utils.data import random_split, DataLoader
-from torchvision.models import densenet121
+from torchvision.models import densenet121, DenseNet121_Weights
 from torchmetrics.classification import MultilabelAUROC
 from torch.multiprocessing import freeze_support
 from tqdm.auto import tqdm # Progress Bar
@@ -29,8 +31,8 @@ def main():
     IMG_DIR     = "data/images" # full folder
     CSV_FILE    = "cxr_csv/Data_Entry_2017.csv"
     BATCH       = 16
-    LR          =1e-4
-    EPOCHS      = 1
+    LR          = 1e-4
+    EPOCHS      = 5 # default was 1
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # Use GPU if Available
 
@@ -43,7 +45,7 @@ def main():
     val_loader = DataLoader(val_ds, batch_size=BATCH, shuffle=False, num_workers=4)
 
     ### Model
-    model = densenet121(pretrained=True) # load pretrained densenet121
+    model = densenet121(weights=DenseNet121_Weights.DEFAULT) # load pretrained densenet121
     # Details:
     # The last layer of a model is usually a classifier layer,
     # Here we replace that layer with a new one with our target number of classes,
@@ -51,10 +53,14 @@ def main():
     model.classifier = nn.Linear(model.classifier.in_features, len(ds.targets[0]))
     model = model.to(device)
 
-    ### LOSS, OPTIMIZER, METRIC
+    ### LOSS, OPTIMIZER, METRIC, LR Scheduler
     criterion = nn.BCEWithLogitsLoss() # Binary Crossentropy with LogitsLoss (Binary CE + Sigmoid)
     optimizer = optim.AdamW(model.parameters(), lr=LR) # AdamW Optimizer (ADAM + Decoupled Weight Decay)
     metric = MultilabelAUROC(num_labels=len(ds.targets[0])).to(device)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau( # 0.5 Factor and 2 Patience
+        optimizer=optimizer, mode='max', factor=0.5, patience=2 # No verbose parameter
+    )
+    best_auroc = 0.0 # Best AUROC to save the model
 
     ### Train and Validate
     for epoch in range(EPOCHS):
@@ -84,8 +90,20 @@ def main():
         all_preds = torch.cat(preds_list) # Concatenate
         all_targets = torch.cat(targets_list).int()
         val_auroc = metric(all_preds.to(device), all_targets.to(device))
+        # Step the LR scheduler after validation and Print the change
+        old_lr = optimizer.param_groups[0]['lr']
+        scheduler.step(val_auroc)
+        new_lr = optimizer.param_groups[0]['lr']
+        if new_lr != old_lr:
+            print(f"EPOCH {epoch}: Learning rate changed from {old_lr:.2e} to {new_lr:.2e}")
+
         loop.set_postfix(auroc=val_auroc.item())
         print(f"EPOCH {epoch+1} - Val AUROC: {val_auroc:.4f}")
+
+        ### Save the Model
+        if val_auroc > best_auroc:
+            best_auroc = val_auroc
+            torch.save(model.state_dict(), "best_model.pth")
 
 if __name__ == "__main__":
     freeze_support()
