@@ -35,9 +35,9 @@ def main():
                         help="folder that contains .png files")
     parser.add_argument("--csv_file", default="cxr_csv/Data_Entry_2017.csv")
     ARGS = parser.parse_args()
-
     ### Config
     IMG_DIR     = ARGS.img_dir  # "data/images" # full folder
+    print("IMG_DIR resolved to:", IMG_DIR)
     CSV_FILE    = ARGS.csv_file  # "cxr_csv/Data_Entry_2017.csv"
     BATCH       = 16
     LR          = 1e-4
