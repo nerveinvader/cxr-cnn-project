@@ -41,7 +41,7 @@ def main():
     CSV_FILE    = ARGS.csv_file  # "cxr_csv/Data_Entry_2017.csv"
     BATCH       = 16
     LR          = 1e-4
-    EPOCHS      = 5 # default was 1
+    EPOCHS      = 10
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # Use GPU if Available
 
@@ -54,8 +54,8 @@ def main():
     # Define separate transforms
     train_tf = transforms.Compose([
         transforms.Resize((224, 224)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(10),
+        transforms.RandomHorizontalFlip(0.5),
+        transforms.RandomRotation(degrees=5, translate=(0.02, 0.02)),
         transforms.ToTensor(),
         transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
@@ -86,7 +86,7 @@ def main():
 
     # Loaders
     # For train_loader, we used sampler instead of shuffle=True for better randomization/balance
-    train_loader = DataLoader(train_ds, batch_size=BATCH, sampler=sampler, num_workers=4)
+    train_loader = DataLoader(train_ds, batch_size=BATCH, shuffle=True, num_workers=4)
     val_loader = DataLoader(val_ds, batch_size=BATCH, shuffle=False, num_workers=4)
 
     print("Data Loaded") # Debug
