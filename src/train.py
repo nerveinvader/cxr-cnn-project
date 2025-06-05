@@ -13,7 +13,7 @@ from torchvision import transforms
 # from torchvision.models import densenet121, DenseNet121_Weights
 from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
 from torchmetrics.classification import MultilabelAUROC
-from torchmetrics.functional import multilabel_focal_loss
+import torch.nn.functional as TMF
 from torch.multiprocessing import freeze_support
 from tqdm.auto import tqdm # Progress Bar
 
@@ -133,7 +133,7 @@ def main():
         for imgs, targets in loop:
             imgs, targets = imgs.to(device), targets.to(device)
             logits = model(imgs) # forward pass
-            loss = criterion(logits, targets) # calc loss
+            loss = focal_loss_multilabel(logits, targets, alpha=0.25, gamma=2.0) # criterion(logits, targets) # calc loss - old
             optimizer.zero_grad() # reset grad ???
             loss.backward() # backpropagation
             optimizer.step() # update
@@ -169,8 +169,16 @@ def main():
             best_auroc = val_auroc
             torch.save(model.state_dict(), "best_model.pth")
 
-def criterion(logits, targets):
-    return multilabel_focal_loss(logits, targets, alpha=0.25, gamma=2)
+def focal_loss_multilabel(logits, targets, alpha=0.25, gamma=2.0):
+    prob = torch.sigmoid(logits)
+    bce = TMF.binary_cross_entropy_with_logits(logits, targets, reduce="none")
+    p_t = prob*targets + (1 - prob) * (1 - targets)
+    loss = bce * ((1 - p_t) ** gamma)
+
+    if alpha is not None:
+        alpha_t = alpha*targets + (1 - alpha) * (1 - targets)
+        loss = alpha_t * loss
+    return loss.mean()
 
 if __name__ == "__main__":
     freeze_support()
