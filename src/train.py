@@ -10,8 +10,7 @@ from torch import nn, optim, amp
 # WeigthedRandomSample to balance batches
 from torch.utils.data import random_split, DataLoader, WeightedRandomSampler
 from torchvision import transforms
-# from torchvision.models import densenet121, DenseNet121_Weights
-from torchvision.models import efficientnet_b3, EfficientNet_B3_Weights
+from torchvision.models import densenet121, DenseNet121_Weights
 from torchmetrics.classification import MultilabelAUROC
 import torch.nn.functional as TMF
 from torch.multiprocessing import freeze_support
@@ -99,7 +98,7 @@ def main():
 
     ### Model
     # model = densenet121(weights=DenseNet121_Weights.DEFAULT) # load pretrained densenet121
-    model = efficientnet_b3(weights=EfficientNet_B3_Weights.IMAGENET1K_V1) # new model effnetb0
+    model = densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1) # new model effnetb0
     # Details:
     # The last layer of a model is usually a classifier layer,
     # Here we replace that layer with a new one with our target number of classes,
