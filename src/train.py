@@ -55,7 +55,7 @@ def main():
     train_tf = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.RandomHorizontalFlip(0.5),
-        transforms.RandomRotation(degrees=5, translate=(0.02, 0.02)),
+        transforms.RandomRotation(degrees=5),
         transforms.ToTensor(),
         transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
