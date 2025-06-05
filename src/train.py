@@ -134,7 +134,7 @@ def main():
         for imgs, targets in loop:
             imgs, targets = imgs.to(device), targets.to(device)
             logits = model(imgs) # forward pass
-            loss = improved_focal_loss(logits, targets, alpha=0.25, gamma=2.0) # criterion(logits, targets) # calc loss - old
+            loss = improved_focal_loss(logits, targets, pos_weight, alpha=0.25, gamma=2.0) # criterion(logits, targets) # calc loss - old
             optimizer.zero_grad() # reset grad ???
             loss.backward() # backpropagation
             optimizer.step() # update
