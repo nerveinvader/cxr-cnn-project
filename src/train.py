@@ -2,12 +2,14 @@
 ### Train Script
 ### Train a model on the Dataset
 ### Note on quotations: use '' for parameters, use "" for strings and prints.
-
+import argparse
 import os
 import random, numpy as np
 import torch
 from torch import nn, optim
-from torch.utils.data import random_split, DataLoader
+# WeigthedRandomSample to balance batches
+from torch.utils.data import random_split, DataLoader, WeightedRandomSampler
+from torchvision import transforms
 from torchvision.models import densenet121, DenseNet121_Weights
 from torchmetrics.classification import MultilabelAUROC
 from torch.multiprocessing import freeze_support
@@ -27,9 +29,16 @@ def main():
     #os.chdir("..")
     print("CMD Now: ", os.getcwd())
 
+    # Parse for Colab
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--img_dir", default="data/images",
+                        help="folder that contains .png files")
+    parser.add_argument("--csv_file", default="cxr_csv/Data_Entry_2017.csv")
+    ARGS = parser.parse_args()
+
     ### Config
-    IMG_DIR     = "data/images" # full folder
-    CSV_FILE    = "cxr_csv/Data_Entry_2017.csv"
+    IMG_DIR     = ARGS.img_dir  # "data/images" # full folder
+    CSV_FILE    = ARGS.csv_file  # "cxr_csv/Data_Entry_2017.csv"
     BATCH       = 16
     LR          = 1e-4
     EPOCHS      = 5 # default was 1
@@ -40,9 +49,47 @@ def main():
     ds = ChestXRay14(img_dir=IMG_DIR, csv_file=CSV_FILE)
     n = len(ds)
     n_train = int(n * 0.8) # train samples 80%
+
+    # To augment training, we use random flip + small rotations so the models see variety
+    # Define separate transforms
+    train_tf = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(10),
+        transforms.ToTensor(),
+        transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225])
+    ])
+    val_tf = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225])
+    ])
+
+    print("Data Transformed") # Debug
+
     train_ds, val_ds = random_split(ds, [n_train, n - n_train]) # split train | valid
-    train_loader = DataLoader(train_ds, batch_size=BATCH, shuffle=True, num_workers=4)
+    train_ds.dataset.tf = train_tf
+    val_ds.dataset.tf = val_tf
+    # Compute pos_weight tensor for each of the 14 labels
+    all_targets = ds.targets # shape(N, 14)
+    pos = all_targets.sum(dim=0)
+    neg = len(ds) - pos
+    pos_weight = (neg/pos).to(device)
+    # Sampler for balanced batches
+    train_targets = all_targets[train_ds.indices] # (n_train, 14) only for train_set
+    sample_weights = (train_targets.cpu() * pos_weight.cpu()).sum(dim=1).numpy()
+    sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
+
+    # Loaders
+    # For train_loader, we used sampler instead of shuffle=True for better randomization/balance
+    train_loader = DataLoader(train_ds, batch_size=BATCH, sampler=sampler, num_workers=4)
     val_loader = DataLoader(val_ds, batch_size=BATCH, shuffle=False, num_workers=4)
+
+    print("Data Loaded") # Debug
 
     ### Model
     model = densenet121(weights=DenseNet121_Weights.DEFAULT) # load pretrained densenet121
@@ -53,13 +100,21 @@ def main():
     model.classifier = nn.Linear(model.classifier.in_features, len(ds.targets[0]))
     model = model.to(device)
 
+    print("Model Created") # Debug
+
     ### LOSS, OPTIMIZER, METRIC, LR Scheduler
-    criterion = nn.BCEWithLogitsLoss() # Binary Crossentropy with LogitsLoss (Binary CE + Sigmoid)
+    #? Old criterion:
+    # criterion = nn.BCEWithLogitsLoss() # Binary Crossentropy with LogitsLoss (Binary CE + Sigmoid)
+    #* Redefine criterion with class weights
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = optim.AdamW(model.parameters(), lr=LR) # AdamW Optimizer (ADAM + Decoupled Weight Decay)
     metric = MultilabelAUROC(num_labels=len(ds.targets[0])).to(device)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau( # 0.5 Factor and 2 Patience
         optimizer=optimizer, mode='max', factor=0.5, patience=2 # No verbose parameter
     )
+
+    print("Model Features Created") # Debug
+
     best_auroc = 0.0 # Best AUROC to save the model
 
     ### Train and Validate
