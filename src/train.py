@@ -10,8 +10,10 @@ from torch import nn, optim
 # WeigthedRandomSample to balance batches
 from torch.utils.data import random_split, DataLoader, WeightedRandomSampler
 from torchvision import transforms
-from torchvision.models import densenet121, DenseNet121_Weights
+# from torchvision.models import densenet121, DenseNet121_Weights
+from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
 from torchmetrics.classification import MultilabelAUROC
+from torchmetrics.functional import multilabel_focal_loss
 from torch.multiprocessing import freeze_support
 from tqdm.auto import tqdm # Progress Bar
 
@@ -39,7 +41,7 @@ def main():
     IMG_DIR     = ARGS.img_dir  # "data/images" # full folder
     print("IMG_DIR resolved to:", IMG_DIR)
     CSV_FILE    = ARGS.csv_file  # "cxr_csv/Data_Entry_2017.csv"
-    BATCH       = 16
+    BATCH       = 48
     LR          = 1e-4
     EPOCHS      = 10
 
@@ -55,7 +57,6 @@ def main():
     train_tf = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.RandomHorizontalFlip(0.5),
-        transforms.RandomRotation(degrees=5),
         transforms.ToTensor(),
         transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
@@ -92,26 +93,34 @@ def main():
     print("Data Loaded") # Debug
 
     ### Model
-    model = densenet121(weights=DenseNet121_Weights.DEFAULT) # load pretrained densenet121
+    # model = densenet121(weights=DenseNet121_Weights.DEFAULT) # load pretrained densenet121
+    model = efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1) # new model effnetb0
     # Details:
     # The last layer of a model is usually a classifier layer,
     # Here we replace that layer with a new one with our target number of classes,
     # (14 in this case), and we make sure the model is adapted to our dataset and targets.
-    model.classifier = nn.Linear(model.classifier.in_features, len(ds.targets[0]))
+    # model.classifier = nn.Linear(model.classifier.in_features, len(ds.targets[0])) # dsnet121
+    model.classifier[1] = nn.Linear(model.classifier[1].in_features, 14) # effnetb0
     model = model.to(device)
 
     print("Model Created") # Debug
 
-    ### LOSS, OPTIMIZER, METRIC, LR Scheduler
-    #? Old criterion:
-    # criterion = nn.BCEWithLogitsLoss() # Binary Crossentropy with LogitsLoss (Binary CE + Sigmoid)
-    #* Redefine criterion with class weights
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    optimizer = optim.AdamW(model.parameters(), lr=LR) # AdamW Optimizer (ADAM + Decoupled Weight Decay)
+    #* LOSS, OPTIMIZER, METRIC, LR Scheduler
+    # criterion = nn.BCEWithLogitsLoss() # Binary Crossentropy with LogitsLoss (Binary CE + Sigmoid) # Old criterion
+    # criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight) # Redefine criterion with class weights
+
+    optimizer = optim.AdamW([
+        # model.parameters(), lr=LR # old
+        {"params": model.features.parameters(), "lr": 1e-5},
+        {"params": model.classifier.parameters(), "lr": 1e-4}
+        ]) # AdamW Optimizer (ADAM + Decoupled Weight Decay)
+
     metric = MultilabelAUROC(num_labels=len(ds.targets[0])).to(device)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau( # 0.5 Factor and 2 Patience
-        optimizer=optimizer, mode='max', factor=0.5, patience=2 # No verbose parameter
-    )
+
+    # scheduler = optim.lr_scheduler.ReduceLROnPlateau( # 0.5 Factor and 2 Patience
+    #     optimizer=optimizer, mode='max', factor=0.5, patience=2 # No verbose parameter
+    # )
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
 
     print("Model Features Created") # Debug
 
@@ -159,6 +168,9 @@ def main():
         if val_auroc > best_auroc:
             best_auroc = val_auroc
             torch.save(model.state_dict(), "best_model.pth")
+
+def criterion(logits, targets):
+    return multilabel_focal_loss(logits, targets, alpha=0.25, gamma=2)
 
 if __name__ == "__main__":
     freeze_support()
