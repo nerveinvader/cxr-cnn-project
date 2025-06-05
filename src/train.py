@@ -11,7 +11,7 @@ from torch import nn, optim
 from torch.utils.data import random_split, DataLoader, WeightedRandomSampler
 from torchvision import transforms
 # from torchvision.models import densenet121, DenseNet121_Weights
-from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
+from torchvision.models import efficientnet_b3, EfficientNet_B3_Weights
 from torchmetrics.classification import MultilabelAUROC
 import torch.nn.functional as TMF
 from torch.multiprocessing import freeze_support
@@ -44,6 +44,7 @@ def main():
     BATCH       = 48
     LR          = 1e-4
     EPOCHS      = 10
+    patience_counter = 2
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # Use GPU if Available
 
@@ -57,6 +58,7 @@ def main():
     train_tf = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.RandomHorizontalFlip(0.5),
+        transforms.ColorJitter(contrast=0.2),
         transforms.ToTensor(),
         transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
@@ -94,7 +96,7 @@ def main():
 
     ### Model
     # model = densenet121(weights=DenseNet121_Weights.DEFAULT) # load pretrained densenet121
-    model = efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1) # new model effnetb0
+    model = efficientnet_b3(weights=EfficientNet_B3_Weights.IMAGENET1K_V1) # new model effnetb0
     # Details:
     # The last layer of a model is usually a classifier layer,
     # Here we replace that layer with a new one with our target number of classes,
@@ -117,10 +119,9 @@ def main():
 
     metric = MultilabelAUROC(num_labels=len(ds.targets[0])).to(device)
 
-    # scheduler = optim.lr_scheduler.ReduceLROnPlateau( # 0.5 Factor and 2 Patience
-    #     optimizer=optimizer, mode='max', factor=0.5, patience=2 # No verbose parameter
-    # )
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau( # 0.5 Factor and 2 Patience
+        optimizer=optimizer, mode='max', factor=0.5, patience=patience_counter # No verbose parameter
+    )
 
     print("Model Features Created") # Debug
 
@@ -133,7 +134,7 @@ def main():
         for imgs, targets in loop:
             imgs, targets = imgs.to(device), targets.to(device)
             logits = model(imgs) # forward pass
-            loss = focal_loss_multilabel(logits, targets, alpha=0.25, gamma=2.0) # criterion(logits, targets) # calc loss - old
+            loss = improved_focal_loss(logits, targets, alpha=0.25, gamma=2.0) # criterion(logits, targets) # calc loss - old
             optimizer.zero_grad() # reset grad ???
             loss.backward() # backpropagation
             optimizer.step() # update
@@ -148,9 +149,9 @@ def main():
                 imgs = imgs.to(device)
                 targets = targets.to(device)
                 logits = model(imgs)
-                preds = torch.sigmoid(logits).cpu()
+                preds = torch.sigmoid(logits)
                 preds_list.append(preds)
-                targets_list.append(targets.cpu())
+                targets_list.append(targets)
         all_preds = torch.cat(preds_list) # Concatenate
         all_targets = torch.cat(targets_list).int()
         val_auroc = metric(all_preds.to(device), all_targets.to(device))
@@ -168,15 +169,25 @@ def main():
         if val_auroc > best_auroc:
             best_auroc = val_auroc
             torch.save(model.state_dict(), "best_model.pth")
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            if patience_counter >= 4:
+                print("Early Stopping Triggered")
+                break
 
-def focal_loss_multilabel(logits, targets, alpha=0.25, gamma=2.0):
+def improved_focal_loss(logits, targets, pos_weight, alpha=0.25, gamma=2.0):
+    bce = TMF.binary_cross_entropy_with_logits(
+        logits,targets,
+        reduction="none",
+        reduce="none",
+        pos_weight=pos_weight)
     prob = torch.sigmoid(logits)
-    bce = TMF.binary_cross_entropy_with_logits(logits, targets, reduce="none")
-    p_t = prob*targets + (1 - prob) * (1 - targets)
-    loss = bce * ((1 - p_t) ** gamma)
+    p_t = prob * targets + (1 - prob) * (1 - targets)
+    loss = bce * ((1 - p_t + 1e-8) ** gamma)
 
-    if alpha is not None:
-        alpha_t = alpha*targets + (1 - alpha) * (1 - targets)
+    if alpha:
+        alpha_t = alpha * targets + (1 - alpha) * (1 - targets)
         loss = alpha_t * loss
     return loss.mean()
 
