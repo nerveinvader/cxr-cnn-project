@@ -6,7 +6,7 @@ import argparse
 import os
 import random, numpy as np
 import torch
-from torch import nn, optim
+from torch import nn, optim, amp
 # WeigthedRandomSample to balance batches
 from torch.utils.data import random_split, DataLoader, WeightedRandomSampler
 from torchvision import transforms
@@ -41,7 +41,7 @@ def main():
     IMG_DIR     = ARGS.img_dir  # "data/images" # full folder
     print("IMG_DIR resolved to:", IMG_DIR)
     CSV_FILE    = ARGS.csv_file  # "cxr_csv/Data_Entry_2017.csv"
-    BATCH       = 48
+    BATCH       = 32
     LR          = 1e-4
     EPOCHS      = 10
     patience_counter = 2
@@ -89,7 +89,10 @@ def main():
 
     # Loaders
     # For train_loader, we used sampler instead of shuffle=True for better randomization/balance
-    train_loader = DataLoader(train_ds, batch_size=BATCH, shuffle=True, num_workers=4)
+    train_loader = DataLoader(
+        train_ds, batch_size=BATCH,
+        shuffle=True, num_workers=4,
+        pin_memory=True, persistent_workers=True)
     val_loader = DataLoader(val_ds, batch_size=BATCH, shuffle=False, num_workers=4)
 
     print("Data Loaded") # Debug
@@ -123,9 +126,14 @@ def main():
         optimizer=optimizer, mode='max', factor=0.5, patience=patience_counter # No verbose parameter
     )
 
+    scaler = amp.GradScaler()
+
     print("Model Features Created") # Debug
 
     best_auroc = 0.0 # Best AUROC to save the model
+
+    # RTX Optimization
+    torch.set_float32_matmul_precision('high')
 
     ### Train and Validate
     for epoch in range(EPOCHS):
@@ -133,11 +141,15 @@ def main():
         loop = tqdm (train_loader, desc=f"Epoch {epoch+1}/{EPOCHS} [train]", unit="batch") # progress bar
         for imgs, targets in loop:
             imgs, targets = imgs.to(device), targets.to(device)
-            logits = model(imgs) # forward pass
-            loss = improved_focal_loss(logits, targets, pos_weight, alpha=0.25, gamma=2.0) # criterion(logits, targets) # calc loss - old
+            with amp.autocast(device_type='cuda', dtype=torch.float16):
+                logits = model(imgs) # forward pass
+                loss = improved_focal_loss(logits, targets, pos_weight, alpha=0.25, gamma=2.0) # criterion(logits, targets) # calc loss - old
             optimizer.zero_grad() # reset grad ???
-            loss.backward() # backpropagation
-            optimizer.step() # update
+            #loss.backward() # backpropagation
+            scaler.scale(loss).backward()
+            #optimizer.step() # update
+            scaler.step(optimizer)
+            scaler.update()
             loop.set_postfix(loss=loss.item()) # update progress bar with loss
 
         model.eval() # validation mode
@@ -180,7 +192,6 @@ def improved_focal_loss(logits, targets, pos_weight, alpha=0.25, gamma=2.0):
     bce = TMF.binary_cross_entropy_with_logits(
         logits,targets,
         reduction="none",
-        reduce="none",
         pos_weight=pos_weight)
     prob = torch.sigmoid(logits)
     p_t = prob * targets + (1 - prob) * (1 - targets)
