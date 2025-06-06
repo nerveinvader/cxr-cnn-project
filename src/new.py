@@ -15,7 +15,7 @@ python train_chestxray14.py --predict ./test.png --checkpoint best_model.pth --d
 from __future__ import annotations
 
 import argparse
-import csv
+import cv2
 import os
 import random
 import time
@@ -85,7 +85,7 @@ class ChestXrayDataset(data.Dataset):
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         row = self.df.iloc[idx]
         img_path = self.img_dir / row["Image Index"]
-        image = A.imread(img_path.as_posix())  # BGR uint8
+        image = cv2.imread(img_path.as_posix())  # BGR uint8
         augmented = self.transforms(image=image)
         img_tensor = augmented["image"]  # C×H×W float32
         target = torch.from_numpy(self.targets[idx])
@@ -234,7 +234,6 @@ def save_checkpoint(
     if is_best:
         torch.save(state, out_dir / "best_model.pth")
 
-
 def predict_image(
     img_path: Path,
     checkpoint: Path,
@@ -247,7 +246,7 @@ def predict_image(
     model.eval()
 
     tfm = build_transforms(train=False)
-    img = A.imread(img_path.as_posix())
+    img = cv2.imread(img_path.as_posix())
     tensor = tfm(image=img)["image"].unsqueeze(0).to(device)
     with torch.no_grad(), torch.cuda.amp.autocast(enabled=device.type == "cuda"):
         probs = torch.sigmoid(model(tensor)).cpu().squeeze().numpy()
@@ -270,9 +269,9 @@ def main() -> None:
     parser.add_argument("--checkpoint", type=str, default="best_model.pth")
     args = parser.parse_args()
 
-    data_dir = Path(args.data_dir)
-    img_dir = data_dir / "images"
-    csv_file = data_dir / "Data_Entry_2017.csv"
+    data_dir = Path(__file__).parent.parent # Path(args.data_dir)
+    img_dir = data_dir / "data" / "images"
+    csv_file = data_dir / "cxr_csv" / "Data_Entry_2017.csv"
     output_dir = Path(args.output_dir)
     ckpt_path = output_dir / args.checkpoint
 
