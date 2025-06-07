@@ -56,7 +56,7 @@ def main():
     # Define separate transforms
     train_tf = transforms.Compose([
         transforms.Resize((224, 224)),
-        transforms.RandomHorizontalFlip(0.5),
+        #transforms.RandomHorizontalFlip(0.5),
         transforms.ColorJitter(contrast=0.2),
         transforms.ToTensor(),
         transforms.Normalize(
@@ -108,8 +108,8 @@ def main():
     print("Model Created") # Debug
 
     #* LOSS, OPTIMIZER, METRIC, LR Scheduler
-    # criterion = nn.BCEWithLogitsLoss() # Binary Crossentropy with LogitsLoss (Binary CE + Sigmoid) # Old criterion
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight) # Redefine criterion with class weights
+    criterion = nn.BCEWithLogitsLoss() # Binary Crossentropy with LogitsLoss (Binary CE + Sigmoid) # Old criterion
+    # criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight) # Redefine criterion with class weights
 
     optimizer = optim.AdamW([
         # model.parameters(), lr=LR # old
