@@ -97,21 +97,19 @@ def main():
     print("Data Loaded") # Debug
 
     ### Model
-    # model = densenet121(weights=DenseNet121_Weights.DEFAULT) # load pretrained densenet121
-    model = densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1) # new model effnetb0
+    model = densenet121(weights=DenseNet121_Weights.DEFAULT) # load pretrained densenet121
     # Details:
     # The last layer of a model is usually a classifier layer,
     # Here we replace that layer with a new one with our target number of classes,
     # (14 in this case), and we make sure the model is adapted to our dataset and targets.
     model.classifier = nn.Linear(model.classifier.in_features, len(ds.targets[0])) # dsnet121
-    # model.classifier[1] = nn.Linear(model.classifier[1].in_features, 14) # effnetb0
     model = model.to(device)
 
     print("Model Created") # Debug
 
     #* LOSS, OPTIMIZER, METRIC, LR Scheduler
     # criterion = nn.BCEWithLogitsLoss() # Binary Crossentropy with LogitsLoss (Binary CE + Sigmoid) # Old criterion
-    # criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight) # Redefine criterion with class weights
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight) # Redefine criterion with class weights
 
     optimizer = optim.AdamW([
         # model.parameters(), lr=LR # old
@@ -142,7 +140,7 @@ def main():
             imgs, targets = imgs.to(device), targets.to(device)
             with amp.autocast(device_type='cuda', dtype=torch.float16):
                 logits = model(imgs) # forward pass
-                loss = improved_focal_loss(logits, targets, pos_weight, alpha=0.25, gamma=2.0) # criterion(logits, targets) # calc loss - old
+                loss = criterion(logits, targets) # calc loss - old # improved_focal_loss(logits, targets, pos_weight, alpha=0.25, gamma=2.0)
             optimizer.zero_grad() # reset grad ???
             #loss.backward() # backpropagation
             scaler.scale(loss).backward()
