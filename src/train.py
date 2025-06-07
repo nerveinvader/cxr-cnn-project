@@ -40,9 +40,9 @@ def main():
     IMG_DIR     = ARGS.img_dir  # "data/images" # full folder
     print("IMG_DIR resolved to:", IMG_DIR)
     CSV_FILE    = ARGS.csv_file  # "cxr_csv/Data_Entry_2017.csv"
-    BATCH       = 64
+    BATCH       = 32
     LR          = 1e-4
-    EPOCHS      = 10
+    EPOCHS      = 20
     patience_counter = 2
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # Use GPU if Available
@@ -55,7 +55,7 @@ def main():
     # To augment training, we use random flip + small rotations so the models see variety
     # Define separate transforms
     train_tf = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((256, 256)),
         #transforms.RandomHorizontalFlip(0.5),
         transforms.ColorJitter(contrast=0.2),
         transforms.ToTensor(),
@@ -64,7 +64,7 @@ def main():
             std=[0.229, 0.224, 0.225])
     ])
     val_tf = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((256, 256)),
         transforms.ToTensor(),
         transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
