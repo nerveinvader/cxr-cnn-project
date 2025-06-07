@@ -103,8 +103,8 @@ def main():
     # The last layer of a model is usually a classifier layer,
     # Here we replace that layer with a new one with our target number of classes,
     # (14 in this case), and we make sure the model is adapted to our dataset and targets.
-    # model.classifier = nn.Linear(model.classifier.in_features, len(ds.targets[0])) # dsnet121
-    model.classifier[1] = nn.Linear(model.classifier[1].in_features, 14) # effnetb0
+    model.classifier = nn.Linear(model.classifier.in_features, len(ds.targets[0])) # dsnet121
+    # model.classifier[1] = nn.Linear(model.classifier[1].in_features, 14) # effnetb0
     model = model.to(device)
 
     print("Model Created") # Debug
