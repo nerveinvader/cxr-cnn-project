@@ -108,14 +108,13 @@ def main():
     print("Model Created") # Debug
 
     #* LOSS, OPTIMIZER, METRIC, LR Scheduler
-    criterion = nn.BCEWithLogitsLoss() # Binary Crossentropy with LogitsLoss (Binary CE + Sigmoid) # Old criterion
-    # criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight) # Redefine criterion with class weights
+    criterion = nn.BCEWithLogitsLoss() # Binary Crossentropy with LogitsLoss (Binary CE + Sigmoid)
 
-    optimizer = optim.AdamW([
-        # model.parameters(), lr=LR # old
-        {"params": model.features.parameters(), "lr": 1e-5},
-        {"params": model.classifier.parameters(), "lr": 1e-4}
-        ]) # AdamW Optimizer (ADAM + Decoupled Weight Decay)
+    optimizer = optim.AdamW(
+        model.parameters(), lr=LR # old
+        #{"params": model.features.parameters(), "lr": 1e-5},
+        #{"params": model.classifier.parameters(), "lr": 1e-4}
+        ) # AdamW Optimizer (ADAM + Decoupled Weight Decay)
 
     metric = MultilabelAUROC(num_labels=len(ds.targets[0])).to(device)
 
@@ -123,7 +122,7 @@ def main():
         optimizer=optimizer, mode='max', factor=0.5, patience=patience_counter # No verbose parameter
     )
 
-    scaler = amp.GradScaler()
+    #scaler = amp.GradScaler()
 
     print("Model Features Created") # Debug
 
@@ -138,15 +137,11 @@ def main():
         loop = tqdm (train_loader, desc=f"Epoch {epoch+1}/{EPOCHS} [train]", unit="batch") # progress bar
         for imgs, targets in loop:
             imgs, targets = imgs.to(device), targets.to(device)
-            with amp.autocast(device_type='cuda', dtype=torch.float16):
-                logits = model(imgs) # forward pass
-                loss = criterion(logits, targets) # calc loss - old # improved_focal_loss(logits, targets, pos_weight, alpha=0.25, gamma=2.0)
+            logits = model(imgs) # forward pass
+            loss = criterion(logits, targets) # calc loss
             optimizer.zero_grad() # reset grad ???
-            #loss.backward() # backpropagation
-            scaler.scale(loss).backward()
-            #optimizer.step() # update
-            scaler.step(optimizer)
-            scaler.update()
+            loss.backward() # backpropagation
+            optimizer.step() # update
             loop.set_postfix(loss=loss.item()) # update progress bar with loss
 
         model.eval() # validation mode
@@ -184,20 +179,6 @@ def main():
             if patience_counter >= 4:
                 print("Early Stopping Triggered")
                 break
-
-def improved_focal_loss(logits, targets, pos_weight, alpha=0.25, gamma=2.0):
-    bce = TMF.binary_cross_entropy_with_logits(
-        logits,targets,
-        reduction="none",
-        pos_weight=pos_weight)
-    prob = torch.sigmoid(logits)
-    p_t = prob * targets + (1 - prob) * (1 - targets)
-    loss = bce * ((1 - p_t + 1e-8) ** gamma)
-
-    if alpha:
-        alpha_t = alpha * targets + (1 - alpha) * (1 - targets)
-        loss = alpha_t * loss
-    return loss.mean()
 
 if __name__ == "__main__":
     freeze_support()
