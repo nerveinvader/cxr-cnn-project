@@ -40,7 +40,7 @@ def main():
     IMG_DIR     = ARGS.img_dir  # "data/images" # full folder
     print("IMG_DIR resolved to:", IMG_DIR)
     CSV_FILE    = ARGS.csv_file  # "cxr_csv/Data_Entry_2017.csv"
-    BATCH       = 32
+    BATCH       = 64
     LR          = 1e-4
     EPOCHS      = 10
     patience_counter = 2
