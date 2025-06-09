@@ -5,9 +5,10 @@
 import argparse
 import os
 import cv2 # fast BGR img I/O
-import random, numpy as np
+import random, numpy as np, math
 import torch
 from torch import nn, optim, amp
+from torch.optim.lr_scheduler import (LinearLR, CosineAnnealingWarmRestarts, SequentialLR) # LR Scheduler
 from torch.utils.data import random_split, DataLoader, WeightedRandomSampler
 from torchvision import transforms
 # from torchvision.models import densenet121, DenseNet121_Weights
@@ -47,6 +48,9 @@ def main():
     LR          = 1e-4
     EPOCHS      = 20
     patience_counter = 2
+    # LR Scheduler
+    warmup_epochs = 2
+    first_restart = 4 # T_0 for Cosine...
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # Use GPU if Available
 
@@ -103,7 +107,7 @@ def main():
 
     ### Model
     # model = densenet121(weights=DenseNet121_Weights.DEFAULT) # load pretrained densenet121
-    model = efficientnet_b1(weights=EfficientNet_B1_Weights)
+    model = efficientnet_b1(weights=EfficientNet_B1_Weights.DEFAULT)
     in_feat = model.classifier[1].in_features
     model.classifier = nn.Sequential(
         nn.Dropout(0.4),
@@ -130,8 +134,17 @@ def main():
 
     metric = MultilabelAUROC(num_labels=len(LABELS)).to(device)
 
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau( # 0.5 Factor and 2 Patience
-        optimizer=optimizer, mode='max', factor=0.5, patience=patience_counter # No verbose parameter
+    # Learning Rate Scheduler
+    warmup_scheduler = LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs)
+    cosine_scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=first_restart, T_mult=2)
+
+    #? Old LR Scheduler
+    #scheduler = optim.lr_scheduler.ReduceLROnPlateau( # 0.5 Factor and 2 Patience
+    #    optimizer=optimizer, mode='max', factor=0.5, patience=patience_counter # No verbose parameter
+    #)
+
+    scheduler = SequentialLR(
+        optimizer=optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
     )
 
     scaler = amp.GradScaler()
@@ -152,10 +165,11 @@ def main():
             with torch.amp.autocast(device_type='cuda'):
                 logits = model(imgs) # forward pass
                 loss = criterion(logits, targets) # calc loss
-            optimizer.zero_grad() # clear grad
+            optimizer.zero_grad(set_to_none=True) # clear grad
             scaler.scale(loss).backward() # backpropagation with scale
             scaler.step(optimizer) # optimizer step
             scaler.update() # update scale
+            scheduler.step()
             loop.set_postfix(loss=loss.item()) # update progress bar with loss
 
         model.eval() # validation mode
@@ -173,12 +187,14 @@ def main():
         all_preds = torch.cat(preds_list) # Concatenate
         all_targets = torch.cat(targets_list).int()
         val_auroc = metric(all_preds.to(device), all_targets.to(device))
+
+        # Used for ReduceLROnPlateau
         # Step the LR scheduler after validation and Print the change
-        old_lr = optimizer.param_groups[0]['lr']
-        scheduler.step(val_auroc)
-        new_lr = optimizer.param_groups[0]['lr']
-        if new_lr != old_lr:
-            print(f"EPOCH {epoch}: Learning rate changed from {old_lr:.2e} to {new_lr:.2e}")
+        #old_lr = optimizer.param_groups[0]['lr']
+        #scheduler.step(val_auroc)
+        #new_lr = optimizer.param_groups[0]['lr']
+        #if new_lr != old_lr:
+        #    print(f"EPOCH {epoch}: Learning rate changed from {old_lr:.2e} to {new_lr:.2e}")
 
         loop.set_postfix(auroc=val_auroc.item())
         print(f"EPOCH {epoch+1} - Val AUROC: {val_auroc:.4f}")
