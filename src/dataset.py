@@ -86,11 +86,11 @@ class ChestXRay14(Dataset):
 
     def __len__(self):
         return len(self.paths)
-    ### Get Item (individual image)
+    ### Get Item (individual image and return image and target tensors)
     def __getitem__(self, idx):
         img_path = self.img_dir / self.paths[idx]
         img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE) # 1 ch uint8
-        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB) # 3 ch RGB
+        img = np.stack([img] * 3, axis=-1) # replicate one channel into 3 channel format ~RGB
         aug = self.tf(image=img)
         #img = Image.open(img_path).convert('RGB')
         return aug["image"], self.targets[idx]
