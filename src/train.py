@@ -123,7 +123,7 @@ def main():
 
     #* Define separate transforms
     train_tf = ALB.Compose([
-        ALB.RandomResizedCrop(IMG_SIZE, IMG_SIZE, # JUNE 9
+        ALB.RandomResizedCrop([IMG_SIZE, IMG_SIZE], # JUNE 9
                               scale=(0.8, 1.0),
                               ratio=(0.9, 1.1),
                               p=1.0),
@@ -138,7 +138,7 @@ def main():
         ToTensorV2(),
     ])
     val_tf = ALB.Compose([
-        ALB.Resize(IMG_SIZE, IMG_SIZE, interpolation=cv2.INTER_LINEAR),
+        ALB.Resize(height=IMG_SIZE, width=IMG_SIZE, interpolation=cv2.INTER_LINEAR),
         ALB.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8)),
         ALB.Normalize(
             mean=[0.485, 0.456, 0.406],
@@ -274,7 +274,7 @@ def main():
                     logits = (logits1 + logits2) / 2.0
                 #
                 preds = torch.sigmoid(logits)
-                metric.update(preds, targets) # JUNE 9
+                metric.update(preds, targets.int) # JUNE 9
                 preds_list.append(preds)
                 targets_list.append(targets)
         all_preds = torch.cat(preds_list) # Concatenate
