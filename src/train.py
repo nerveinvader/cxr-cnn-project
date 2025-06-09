@@ -95,11 +95,22 @@ def main():
     pos_weight = (len(train_ds) - counts) / counts # tensor, shape (14,)
     pos_weight = pos_weight.to(torch.float32) # required dtype
 
+    # Weighted Random Sampler instead of Shuffling
+    targets = train_ds.targets # Tensor N,14 of 0/1
+    class_inv = 1.0 / targets.sum(dim=0) # positives per class
+    img_w = (targets * class_inv).sum(dim=1) # bigger is rarer
+    img_w = torch.where(img_w == 0, class_inv.min(), img_w) # no finding
+    train_sampler = torch.utils.data.WeightedRandomSampler(
+        weights=img_w,
+        num_samples=len(train_ds),
+        replacement=True
+    )
+
     # Loaders
     # For train_loader, we used sampler instead of shuffle=True for better randomization/balance
     train_loader = DataLoader(
         train_ds, batch_size=BATCH,
-        shuffle=True, num_workers=4,
+        sampler=train_sampler, num_workers=4,
         pin_memory=True, persistent_workers=True)
     val_loader = DataLoader(val_ds, batch_size=BATCH, shuffle=False, num_workers=4)
 
