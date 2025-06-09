@@ -30,6 +30,16 @@ def main():
     torch.manual_seed(SEED)
     torch.cuda.manual_seed_all(SEED)
 
+    # GPU Check
+    print("CUDA available :", torch.cuda.is_available())
+    print("Visible devices:", torch.cuda.device_count())
+    if torch.cuda.is_available():
+        idx = torch.cuda.current_device()
+        print("Current device :", idx, torch.cuda.get_device_name(idx))
+        print("Allocated / Reserved (MB):",
+              torch.cuda.memory_allocated() // 2**20, "/",
+              torch.cuda.memory_reserved()  // 2**20)
+
     # move up to project root
     #os.chdir("..")
     print("CMD Now: ", os.getcwd())
@@ -180,7 +190,6 @@ def main():
             scaler.scale(loss).backward() # backpropagation with scale
             scaler.step(optimizer) # optimizer step
             scaler.update() # update scale
-            scheduler.step()
             loop.set_postfix(loss=loss.item()) # update progress bar with loss
 
         model.eval() # validation mode
@@ -198,6 +207,7 @@ def main():
         all_preds = torch.cat(preds_list) # Concatenate
         all_targets = torch.cat(targets_list).int()
         val_auroc = metric(all_preds.to(device), all_targets.to(device))
+        scheduler.step()
 
         # Used for ReduceLROnPlateau
         # Step the LR scheduler after validation and Print the change
