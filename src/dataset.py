@@ -19,7 +19,7 @@ LABELS = [
     'Atelectasis', 'Cardiomegaly', 'Effusion',
     'Infiltration','Mass', 'Nodule', 'Pneumonia',
     'Pneumothorax','Consolidation', 'Edema', 'Emphysema',
-    'Fibrosis','Pleural_Thickening', 'Hernia'
+    'Fibrosis','Pleural_Thickening', 'Hernia', 'No Finding'
 ]
 
 ### Private Helper Method - Read CSV without Null Bytes
@@ -49,8 +49,8 @@ class ChestXRay14(Dataset):
         np.random.shuffle(unique_patients)
 
         # Split
-        n_train_idx = int(len(unique_patients) * 0.8)
-        n_valid_idx = int(len(unique_patients) * 0.9)
+        n_train_idx = int(len(unique_patients) * 0.7)
+        n_valid_idx = int(len(unique_patients) * 0.8)
         # Use Splits
         if split == 'train':
             selected_patient = set(unique_patients[:n_train_idx])
@@ -71,6 +71,8 @@ class ChestXRay14(Dataset):
                 for lbl in labels.split('|'):
                     idx = LABELS.index(lbl)
                     vec[idx] = 1.
+            else:
+                vec[-1] = 1. # Last class is no finding
             self.targets.append(vec)
         self.targets = torch.stack(self.targets)
 
