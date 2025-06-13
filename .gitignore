@@ -3,3 +3,4 @@
 **/data/images_0*.zip
 *.pth
 best_model.pth
+*.pth
