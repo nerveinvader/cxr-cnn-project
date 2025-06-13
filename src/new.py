@@ -158,7 +158,7 @@ def train_one_epoch(
     model: nn.Module,
     loader: data.DataLoader,
     optimizer: optim.Optimizer,
-    scaler: torch.cuda.amp.GradScaler | None,
+    scaler: torch.amp.GradScaler | None,
     loss_fn: nn.Module,
     device: torch.device,
     accum_steps: int = 1,
@@ -169,7 +169,7 @@ def train_one_epoch(
     pbar = tqdm(loader, desc="Train", leave=False)
     for step, (images, targets) in enumerate(pbar):
         images, targets = images.to(device), targets.to(device)
-        with torch.cuda.amp.autocast(enabled=scaler is not None):
+        with torch.amp.autocast(device_type='cuda', enabled=scaler is not None):
             outputs = model(images)
             loss = loss_fn(outputs, targets) / accum_steps
 

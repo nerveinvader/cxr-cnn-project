@@ -16,7 +16,6 @@ from torch.optim.lr_scheduler import OneCycleLR ## New LR cycle JUNE 9
 # Data Loading
 from torch.utils.data import DataLoader
 # Model
-import timm # New backbone JUNE 9
 from torchvision.models import densenet121, DenseNet121_Weights
 import albumentations as ALB # aug lib
 from albumentations.pytorch import ToTensorV2 # convert to torch.tensor
@@ -133,8 +132,6 @@ def main():
 		#                       p=1.0),
 		ALB.HorizontalFlip(p=0.5),
 		ALB.RandomBrightnessContrast(p=0.3), # JUNE 9
-		ALB.GaussNoise(var_limit=(10.0, 50.0), p=0.3), # JUNE 9
-		ALB.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=0.3),
 		ALB.Normalize(
 			mean=[0.485, 0.456, 0.406],
 			std=[0.229, 0.224, 0.225]),
@@ -142,7 +139,6 @@ def main():
 	])
 	val_tf = ALB.Compose([
 		ALB.Resize(height=IMG_SIZE, width=IMG_SIZE, interpolation=cv2.INTER_LINEAR),
-		ALB.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8)),
 		ALB.Normalize(
 			mean=[0.485, 0.456, 0.406],
 			std=[0.229, 0.224, 0.225]),
